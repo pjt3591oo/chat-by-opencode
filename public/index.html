@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus Chat</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <script src="/socket.io/socket.io.js"></script>
+
+    <style>
+        :root {
+            --bg-deep: #050507;
+            --bg-subtle: #0f111a;
+            
+            --glass-base: rgba(20, 20, 30, 0.6);
+            --glass-highlight: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-border-light: rgba(255, 255, 255, 0.15);
+            --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            
+            --primary: #6366f1;
+            --primary-glow: rgba(99, 102, 241, 0.5);
+            --secondary: #a855f7;
+            --secondary-glow: rgba(168, 85, 247, 0.5);
+            --success: #10b981;
+            --danger: #ef4444;
+            
+            --text-main: #ffffff;
+            --text-body: #94a3b8;
+            --text-muted: #64748b;
+            
+            --gradient-primary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%);
+            --gradient-dark: linear-gradient(180deg, rgba(20,20,30,0) 0%, rgba(20,20,30,0.8) 100%);
+            
+            --font-display: 'Outfit', sans-serif;
+            --font-body: 'Plus Jakarta Sans', sans-serif;
+            
+            --ease-elastic: cubic-bezier(0.34, 1.56, 0.64, 1);
+            --ease-smooth: cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; outline: none; }
+        
+        body {
+            background-color: var(--bg-deep);
+            color: var(--text-main);
+            font-family: var(--font-body);
+            height: 100vh;
+            overflow: hidden;
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.12) 0%, transparent 50%),
+                radial-gradient(circle at 85% 30%, rgba(168, 85, 247, 0.12) 0%, transparent 50%);
+            background-attachment: fixed;
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { 
+            background: rgba(255, 255, 255, 0.1); 
+            border-radius: 20px; 
+            border: 2px solid transparent; 
+            background-clip: content-box; 
+        }
+        ::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.2); }
+
+        .glass-panel {
+            background: rgba(20, 20, 30, 0.6);
+            backdrop-filter: blur(40px) saturate(180%);
+            border: 1px solid var(--glass-border);
+            border-radius: 32px;
+            box-shadow: 
+                0 0 0 1px var(--glass-border),
+                0 25px 50px -12px rgba(0, 0, 0, 0.5),
+                0 0 80px -20px rgba(99, 102, 241, 0.2);
+        }
+
+        #login-screen, #create-room-modal {
+            position: fixed; inset: 0;
+            display: flex; justify-content: center; align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(20px);
+            background: rgba(3, 3, 5, 0.7);
+            transition: opacity 0.6s var(--ease-smooth), visibility 0.6s;
+        }
+
+        #login-screen.hidden, #create-room-modal.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+
+        .login-card {
+            padding: 4rem 3rem;
+            width: 100%; max-width: 440px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            transform: translateY(0);
+            transition: transform 0.4s var(--ease-elastic);
+        }
+
+        .login-card:hover { transform: translateY(-5px); }
+
+        .login-card::after {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, var(--primary), transparent);
+            opacity: 0.8;
+        }
+
+        .logo-text {
+            font-family: var(--font-display);
+            font-size: 3.5rem;
+            font-weight: 800;
+            line-height: 1;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.75rem;
+            letter-spacing: -0.04em;
+            filter: drop-shadow(0 0 30px rgba(99, 102, 241, 0.3));
+        }
+
+        .subtitle {
+            color: var(--text-body);
+            font-size: 1.1rem;
+            margin-bottom: 3rem;
+            font-weight: 400;
+            letter-spacing: -0.01em;
+        }
+
+        .input-group { position: relative; margin-bottom: 1.5rem; }
+
+        .text-input, textarea.text-input {
+            width: 100%;
+            padding: 1.25rem 1.5rem;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            color: var(--text-main);
+            font-family: var(--font-body);
+            font-size: 1.05rem;
+            transition: all 0.3s var(--ease-smooth);
+            resize: none;
+        }
+
+        .text-input:hover { background: rgba(255, 255, 255, 0.06); }
+        
+        .text-input:focus {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .text-input::placeholder { color: var(--text-muted); }
+
+        .btn-primary, .btn-secondary {
+            width: 100%;
+            padding: 1.25rem;
+            border: none;
+            border-radius: 16px;
+            color: white;
+            font-weight: 700;
+            font-size: 1.05rem;
+            letter-spacing: 0.01em;
+            cursor: pointer;
+            transition: all 0.3s var(--ease-elastic);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-primary {
+            background: var(--gradient-primary);
+            box-shadow: 0 10px 20px -5px rgba(99, 102, 241, 0.4);
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-body);
+            margin-top: 1rem;
+        }
+
+        .btn-primary::before {
+            content: ''; position: absolute; inset: 0;
+            background: linear-gradient(rgba(255,255,255,0.2), transparent);
+            opacity: 0; transition: opacity 0.3s;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 15px 30px -5px rgba(99, 102, 241, 0.5);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+        }
+        
+        .btn-primary:hover::before { opacity: 1; }
+        .btn-primary:active { transform: translateY(-1px) scale(0.98); }
+
+        #chat-interface {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            height: 100vh;
+            opacity: 0;
+            transform: scale(0.95);
+            transition: all 0.8s var(--ease-elastic);
+            visibility: hidden;
+        }
+
+        #chat-interface.active { opacity: 1; transform: scale(1); visibility: visible; }
+
+        aside {
+            background: rgba(10, 10, 15, 0.6);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid var(--glass-border);
+            display: flex; flex-direction: column;
+            padding: 2rem;
+            z-index: 10;
+        }
+
+        .sidebar-header {
+            margin-bottom: 2rem;
+            display: flex; align-items: center; gap: 1rem;
+        }
+
+        .app-icon {
+            width: 42px; height: 42px;
+            background: var(--gradient-primary);
+            border-radius: 14px;
+            display: grid; place-items: center;
+            font-weight: 800; font-size: 1.2rem;
+            box-shadow: 0 8px 16px -4px rgba(99, 102, 241, 0.4);
+        }
+
+        .sidebar-title {
+            font-family: var(--font-display);
+            font-weight: 700; font-size: 1.25rem;
+            letter-spacing: -0.02em;
+        }
+
+        .section-header {
+            display: flex; justify-content: space-between; align-items: center;
+            text-transform: uppercase;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            margin-bottom: 1rem;
+            padding-left: 0.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .btn-icon-small {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            width: 24px; height: 24px;
+            border-radius: 8px;
+            color: var(--text-body);
+            cursor: pointer;
+            display: grid; place-items: center;
+            transition: all 0.2s;
+        }
+        
+        .btn-icon-small:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        .list-container {
+            list-style: none; 
+            overflow-y: auto; 
+            max-height: 40%;
+            margin-bottom: 0.5rem;
+        }
+        
+        #users-list { flex-grow: 1; max-height: none; }
+
+        .list-item {
+            display: flex; align-items: center; gap: 0.8rem;
+            padding: 0.75rem 1rem;
+            border-radius: 14px;
+            transition: all 0.2s;
+            cursor: pointer;
+            color: var(--text-body);
+            margin-bottom: 0.25rem;
+            border: 1px solid transparent;
+        }
+
+        .list-item:hover {
+            background: var(--glass-highlight);
+            color: var(--text-main);
+            transform: translateX(4px);
+        }
+
+        .list-item.active {
+            background: rgba(99, 102, 241, 0.1);
+            border-color: rgba(99, 102, 241, 0.3);
+            color: var(--text-main);
+        }
+
+        .room-icon {
+            color: var(--text-muted);
+            font-weight: 400;
+            font-size: 1.1rem;
+        }
+        
+        .active .room-icon { color: var(--primary); }
+
+        .item-info { flex-grow: 1; display: flex; flex-direction: column; gap: 2px; }
+        
+        .item-name { font-weight: 500; font-size: 0.95rem; }
+        
+        .item-badge {
+            font-size: 0.7rem;
+            background: rgba(255, 255, 255, 0.08);
+            padding: 2px 8px;
+            border-radius: 10px;
+            color: var(--text-muted);
+        }
+        
+        .active .item-badge {
+            background: var(--primary);
+            color: white;
+        }
+
+        .user-avatar {
+            width: 32px; height: 32px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--glass-border);
+            display: grid; place-items: center;
+            font-weight: 600; font-size: 0.8rem;
+            color: var(--text-main);
+            position: relative;
+        }
+
+        .user-status {
+            width: 8px; height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            position: absolute; bottom: -2px; right: -2px;
+            border: 2px solid #0a0a0f;
+            box-shadow: 0 0 8px var(--success);
+        }
+
+        main {
+            display: flex; flex-direction: column;
+            position: relative;
+            height: 100vh;
+            min-height: 0;
+            overflow: hidden;
+            background: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.05), transparent 70%);
+        }
+
+        .chat-header {
+            padding: 1.5rem 2.5rem;
+            border-bottom: 1px solid var(--glass-border);
+            display: flex; justify-content: space-between; align-items: center;
+            backdrop-filter: blur(10px);
+            background: rgba(5, 5, 7, 0.5);
+            z-index: 5;
+            flex-shrink: 0;
+        }
+
+        .chat-title {
+            font-family: var(--font-display);
+            font-size: 1.2rem; font-weight: 700;
+            display: flex; align-items: center; gap: 0.5rem;
+        }
+        
+        .chat-title::before {
+            content: '#'; color: var(--text-muted); font-weight: 400;
+        }
+
+        .connection-status {
+            font-size: 0.85rem; color: var(--success);
+            display: flex; align-items: center; gap: 0.6rem;
+            background: rgba(16, 185, 129, 0.1);
+            padding: 0.4rem 0.8rem;
+            border-radius: 20px;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .status-dot {
+            width: 6px; height: 6px;
+            background: currentColor;
+            border-radius: 50%;
+            box-shadow: 0 0 8px currentColor;
+        }
+
+        #messages-container {
+            flex-grow: 1;
+            min-height: 0;
+            padding: 2rem 2.5rem;
+            overflow-y: auto;
+            display: flex; flex-direction: column; gap: 1.5rem;
+            scroll-behavior: smooth;
+        }
+
+        .message {
+            display: flex; gap: 1rem;
+            max-width: 65%;
+            animation: messageSlide 0.4s var(--ease-smooth) forwards;
+            opacity: 0; transform: translateY(20px);
+        }
+
+        @keyframes messageSlide {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.self {
+            margin-left: auto;
+            flex-direction: row-reverse;
+        }
+
+        .message.system {
+            max-width: 100%;
+            margin: 1rem auto;
+            justify-content: center;
+            opacity: 1;
+        }
+
+        .system-content {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--glass-border);
+            padding: 0.4rem 1.2rem;
+            border-radius: 100px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            letter-spacing: 0.02em;
+        }
+
+        .msg-avatar {
+            width: 38px; height: 38px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #334155, #1e293b);
+            display: grid; place-items: center;
+            font-size: 0.85rem; flex-shrink: 0; font-weight: 700;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+
+        .self .msg-avatar { background: var(--gradient-primary); color: white; }
+
+        .msg-content-wrapper {
+            display: flex; flex-direction: column; gap: 0.35rem;
+            align-items: flex-start;
+        }
+        
+        .self .msg-content-wrapper { align-items: flex-end; }
+
+        .msg-meta {
+            font-size: 0.75rem; color: var(--text-muted);
+            display: flex; gap: 0.75rem; align-items: center;
+        }
+
+        .self .msg-meta { flex-direction: row-reverse; }
+
+        .msg-read-count {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            margin-top: 0.25rem;
+            opacity: 0.7;
+        }
+
+        .msg-read-count svg {
+            width: 12px;
+            height: 12px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+        }
+
+        .self .msg-read-count {
+            justify-content: flex-end;
+        }
+
+        .msg-bubble {
+            padding: 1rem 1.25rem;
+            border-radius: 4px 20px 20px 20px;
+            background: rgba(30, 30, 40, 0.6);
+            backdrop-filter: blur(10px);
+            color: var(--text-body);
+            font-size: 0.95rem; line-height: 1.6;
+            position: relative;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border: 1px solid var(--glass-border);
+            transition: transform 0.2s;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+            word-break: break-word;
+        }
+
+        .msg-bubble:hover { transform: translateY(-1px); }
+
+        .self .msg-bubble {
+            background: var(--gradient-primary);
+            color: white;
+            border-radius: 20px 4px 20px 20px;
+            border: none;
+            box-shadow: 0 8px 20px -5px rgba(99, 102, 241, 0.4);
+        }
+
+        .other .msg-bubble {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--glass-border);
+        }
+
+        .msg-image {
+            max-width: 300px;
+            border-radius: 16px;
+            overflow: hidden;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            transition: transform 0.2s;
+        }
+        
+        .msg-image img { width: 100%; height: auto; display: block; }
+        .msg-image:hover { transform: scale(1.02); }
+
+        .msg-file-link {
+            display: flex; align-items: center; gap: 0.8rem;
+            text-decoration: none;
+            color: inherit;
+        }
+        
+        .file-icon {
+            width: 32px; height: 32px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            display: grid; place-items: center;
+        }
+        
+        .file-info { display: flex; flex-direction: column; gap: 2px; }
+        .file-name { font-weight: 600; font-size: 0.9rem; }
+        .file-size { font-size: 0.75rem; opacity: 0.8; }
+
+        .chat-footer {
+            padding: 1.5rem 2.5rem;
+            background: rgba(5, 5, 7, 0.8);
+            backdrop-filter: blur(20px);
+            border-top: 1px solid var(--glass-border);
+            position: relative;
+            z-index: 10;
+            flex-shrink: 0;
+        }
+
+        #typing-indicator {
+            position: absolute;
+            top: -32px; left: 2.5rem;
+            font-size: 0.75rem; color: var(--primary);
+            opacity: 0; transition: all 0.3s;
+            font-weight: 600;
+            background: rgba(99, 102, 241, 0.1);
+            padding: 0.25rem 0.75rem;
+            border-radius: 10px 10px 10px 0;
+        }
+
+        #typing-indicator.active { opacity: 1; transform: translateY(-5px); }
+        
+        #file-preview {
+            position: absolute;
+            top: -70px; left: 2.5rem;
+            background: rgba(20, 20, 30, 0.9);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            padding: 0.5rem 1rem;
+            border-radius: 12px;
+            display: flex; align-items: center; gap: 1rem;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            transform: translateY(10px);
+            opacity: 0; visibility: hidden;
+            transition: all 0.3s var(--ease-smooth);
+        }
+        
+        #file-preview.active { transform: translateY(0); opacity: 1; visibility: visible; }
+        
+        .preview-info { font-size: 0.9rem; color: var(--text-main); }
+        .preview-close { 
+            cursor: pointer; color: var(--text-muted); 
+            width: 20px; height: 20px; display: grid; place-items: center;
+        }
+        .preview-close:hover { color: var(--danger); }
+
+        .input-container {
+            display: flex; gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 0.6rem;
+            border-radius: 20px;
+            border: 1px solid var(--glass-border);
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            align-items: center;
+        }
+
+        .input-container:focus-within {
+            border-color: var(--primary);
+            background: rgba(255, 255, 255, 0.05);
+            box-shadow: 0 4px 25px rgba(99, 102, 241, 0.15);
+        }
+
+        #message-input {
+            flex-grow: 1;
+            background: transparent;
+            border: none;
+            padding: 0.75rem 1rem;
+            color: var(--text-main);
+            font-family: var(--font-body);
+            font-size: 1rem;
+        }
+
+        #message-input::placeholder { color: var(--text-muted); }
+
+        .btn-icon {
+            background: transparent;
+            border: none;
+            width: 42px; height: 42px;
+            border-radius: 12px;
+            color: var(--text-muted);
+            cursor: pointer;
+            display: grid; place-items: center;
+            transition: all 0.3s;
+        }
+        
+        .btn-icon:hover { background: rgba(255, 255, 255, 0.08); color: var(--text-main); }
+
+        #send-btn {
+            background: var(--glass-border);
+            width: 48px; height: 48px;
+            border-radius: 14px;
+            color: var(--text-main);
+        }
+
+        .input-container:focus-within #send-btn {
+            background: var(--gradient-primary);
+            color: white;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        #send-btn:hover {
+            transform: scale(1.1) rotate(-10deg);
+            filter: brightness(1.2);
+        }
+
+        svg {
+            width: 20px; height: 20px;
+            fill: none; stroke: currentColor;
+            stroke-width: 2.5;
+            stroke-linecap: round; stroke-linejoin: round;
+        }
+        
+        #send-btn svg { transition: transform 0.3s; }
+        #send-btn:hover svg { transform: translateX(2px) translateY(-2px); }
+
+        @media (max-width: 768px) {
+            #chat-interface { grid-template-columns: 1fr; }
+            aside {
+                position: fixed; inset: 0; z-index: 100;
+                transform: translateX(-100%);
+                transition: transform 0.3s var(--ease-smooth);
+            }
+            
+            .chat-header { padding: 1rem 1.5rem; }
+            #messages-container { padding: 1rem 1.5rem; }
+            .chat-footer { padding: 1rem 1.5rem; }
+            .message { max-width: 85%; }
+            .login-card { padding: 2rem; width: 90%; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app">
+        <div id="login-screen">
+            <div class="login-card glass-panel">
+                <h1 class="logo-text">Nexus</h1>
+                <p class="subtitle">Enter the void. Connect with others.</p>
+                
+                <form id="login-form">
+                    <div class="input-group">
+                        <input type="text" id="username-input" class="text-input" placeholder="Enter your alias" autocomplete="off" required minlength="2" maxlength="20">
+                    </div>
+                    <button type="submit" class="btn-primary">Join Network</button>
+                </form>
+            </div>
+        </div>
+
+        <div id="create-room-modal" class="hidden">
+            <div class="login-card glass-panel">
+                <h2 style="font-family: var(--font-display); font-size: 2rem; margin-bottom: 0.5rem;">New Room</h2>
+                <p class="subtitle" style="margin-bottom: 2rem">Create a new space for conversation.</p>
+                
+                <form id="create-room-form">
+                    <div class="input-group">
+                        <input type="text" id="room-name-input" class="text-input" placeholder="Room Name" autocomplete="off" required minlength="2" maxlength="20">
+                    </div>
+                    <div class="input-group">
+                        <textarea id="room-desc-input" class="text-input" placeholder="Description (optional)" rows="3"></textarea>
+                    </div>
+                    <button type="submit" class="btn-primary">Create Room</button>
+                    <button type="button" id="cancel-room-btn" class="btn-secondary">Cancel</button>
+                </form>
+            </div>
+        </div>
+
+        <div id="chat-interface">
+            <aside>
+                <div class="sidebar-header">
+                    <div class="app-icon">N</div>
+                    <div class="sidebar-title">Nexus Chat</div>
+                </div>
+                
+                <div class="section-header">
+                    <span>Rooms</span>
+                    <button id="create-room-btn" class="btn-icon-small" title="Create Room">
+                        <svg viewBox="0 0 24 24" style="width:16px; height:16px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    </button>
+                </div>
+                <ul id="rooms-list" class="list-container">
+                </ul>
+
+                <div class="section-header">
+                    <span>Online Users</span>
+                </div>
+                <ul id="users-list">
+                </ul>
+            </aside>
+
+            <main>
+                <header class="chat-header">
+                    <div class="chat-title" id="current-room-name">General</div>
+                    <div class="connection-status">
+                        <div class="status-dot"></div>
+                        <span id="connection-text">Connected</span>
+                    </div>
+                </header>
+
+                <div id="messages-container">
+                </div>
+
+                <div class="chat-footer">
+                    <div id="typing-indicator">Someone is typing...</div>
+                    <div id="file-preview">
+                        <span class="preview-info" id="preview-filename">image.png</span>
+                        <div class="preview-close" id="remove-file-btn">
+                            <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </div>
+                    </div>
+                    
+                    <form id="chat-form" class="input-container">
+                        <input type="file" id="file-input" hidden>
+                        <button type="button" id="attach-btn" class="btn-icon" title="Attach File">
+                            <svg viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+                        </button>
+                        
+                        <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
+                        <button type="submit" id="send-btn">
+                            <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                        </button>
+                    </form>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const socket = io();
+            
+            const loginScreen = document.getElementById('login-screen');
+            const chatInterface = document.getElementById('chat-interface');
+            const loginForm = document.getElementById('login-form');
+            const usernameInput = document.getElementById('username-input');
+            const chatForm = document.getElementById('chat-form');
+            const messageInput = document.getElementById('message-input');
+            const messagesContainer = document.getElementById('messages-container');
+            const usersList = document.getElementById('users-list');
+            const roomsList = document.getElementById('rooms-list');
+            const typingIndicator = document.getElementById('typing-indicator');
+            const currentRoomNameEl = document.getElementById('current-room-name');
+            
+            const createRoomBtn = document.getElementById('create-room-btn');
+            const createRoomModal = document.getElementById('create-room-modal');
+            const createRoomForm = document.getElementById('create-room-form');
+            const cancelRoomBtn = document.getElementById('cancel-room-btn');
+            const roomNameInput = document.getElementById('room-name-input');
+            const roomDescInput = document.getElementById('room-desc-input');
+
+            const fileInput = document.getElementById('file-input');
+            const attachBtn = document.getElementById('attach-btn');
+            const filePreview = document.getElementById('file-preview');
+            const previewFilename = document.getElementById('preview-filename');
+            const removeFileBtn = document.getElementById('remove-file-btn');
+
+            let username = '';
+            let currentRoomId = 'general';
+            let typingTimeout = null;
+            let isTyping = false;
+            let selectedFile = null;
+
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const name = usernameInput.value.trim();
+                if (name) {
+                    username = name;
+                    socket.emit('join', username);
+                    socket.emit('joinRoom', currentRoomId);
+                    
+                    loginScreen.classList.add('hidden');
+                    setTimeout(() => {
+                        loginScreen.style.display = 'none';
+                        chatInterface.classList.add('active');
+                        messageInput.focus();
+                    }, 500);
+                }
+            });
+
+            createRoomBtn.addEventListener('click', () => {
+                createRoomModal.classList.remove('hidden');
+                roomNameInput.focus();
+            });
+
+            cancelRoomBtn.addEventListener('click', closeRoomModal);
+            
+            createRoomModal.addEventListener('click', (e) => {
+                if (e.target === createRoomModal) closeRoomModal();
+            });
+
+            function closeRoomModal() {
+                createRoomModal.classList.add('hidden');
+                createRoomForm.reset();
+            }
+
+            createRoomForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const name = roomNameInput.value.trim();
+                const description = roomDescInput.value.trim();
+                
+                if (name) {
+                    socket.emit('createRoom', { name, description });
+                    closeRoomModal();
+                }
+            });
+
+            window.switchRoom = (roomId) => {
+                if (roomId === currentRoomId) return;
+                socket.emit('joinRoom', roomId);
+                currentRoomId = roomId;
+                messagesContainer.innerHTML = '';
+                addSystemMessage(`Joined room: ${roomId}`);
+            };
+
+            attachBtn.addEventListener('click', () => fileInput.click());
+
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    selectedFile = e.target.files[0];
+                    previewFilename.textContent = selectedFile.name;
+                    filePreview.classList.add('active');
+                    messageInput.focus();
+                }
+            });
+
+            removeFileBtn.addEventListener('click', clearFile);
+
+            function clearFile() {
+                selectedFile = null;
+                fileInput.value = '';
+                filePreview.classList.remove('active');
+            }
+
+            async function uploadFile(file) {
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                try {
+                    const res = await fetch('/upload', { method: 'POST', body: formData });
+                    if (res.ok) {
+                        const fileData = await res.json();
+                        socket.emit('fileMessage', fileData);
+                        clearFile();
+                        return true;
+                    }
+                } catch (err) {
+                    console.error('Upload failed:', err);
+                    alert('File upload failed');
+                }
+                return false;
+            }
+
+            chatForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                if (selectedFile) {
+                    await uploadFile(selectedFile);
+                }
+
+                const msg = messageInput.value.trim();
+                if (msg) {
+                    socket.emit('chatMessage', msg);
+                    socket.emit('stopTyping');
+                    isTyping = false;
+                    messageInput.value = '';
+                }
+            });
+
+            messageInput.addEventListener('input', () => {
+                if (!isTyping) {
+                    isTyping = true;
+                    socket.emit('typing');
+                }
+
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => {
+                    isTyping = false;
+                    socket.emit('stopTyping');
+                }, 1000);
+            });
+
+            socket.on('roomList', (rooms) => {
+                updateRoomList(rooms);
+            });
+
+            socket.on('currentRoom', ({ roomId, room }) => {
+                currentRoomId = roomId;
+                currentRoomNameEl.textContent = room.name;
+                updateActiveRoomInList();
+            });
+
+            socket.on('messageHistory', ({ room, messages }) => {
+                messagesContainer.innerHTML = '';
+                messages.forEach(msg => {
+                    const isMe = msg.username === username;
+                    addMessage(msg, isMe ? 'self' : 'other');
+                });
+            });
+
+            socket.on('roomCreated', ({ roomId, room }) => {
+                
+            });
+
+            socket.on('message', (data) => {
+                const isMe = data.username === username;
+                addMessage(data, isMe ? 'self' : 'other');
+            });
+
+            socket.on('userList', (users) => {
+                const roomUsers = users.filter(u => u.currentRoom === currentRoomId);
+                updateUserList(roomUsers);
+            });
+
+            socket.on('userJoined', (data) => {
+                addSystemMessage(`${data.username} has entered the room`);
+            });
+
+            socket.on('userLeft', (data) => {
+                addSystemMessage(`${data.username} disconnected`);
+            });
+
+            socket.on('systemMessage', (data) => {
+                const text = typeof data === 'object' ? data.text : data;
+                addSystemMessage(text);
+            });
+
+            socket.on('userTyping', (data) => {
+                const user = typeof data === 'object' ? data.username : data;
+                if (user && user !== username) {
+                    typingIndicator.textContent = `${user} is typing...`;
+                    typingIndicator.classList.add('active');
+                }
+            });
+
+            socket.on('userStopTyping', () => {
+                typingIndicator.classList.remove('active');
+            });
+
+            socket.on('readCountUpdate', ({ messageId, readCount }) => {
+                const readCountEl = document.querySelector(`.msg-read-count[data-msg-id="${messageId}"] .read-count-num`);
+                if (readCountEl) {
+                    readCountEl.textContent = readCount;
+                }
+            });
+
+            function markMessageAsRead(messageId, room) {
+                socket.emit('markAsRead', { messageId, room });
+            }
+
+            function getInitials(name) {
+                return name ? name.substring(0, 2).toUpperCase() : '??';
+            }
+
+            function formatTime(isoString) {
+                const date = isoString ? new Date(isoString) : new Date();
+                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+
+            function addMessage(data, type) {
+                const div = document.createElement('div');
+                div.className = `message ${type}`;
+                div.dataset.messageId = data.id;
+                div.dataset.room = data.room || currentRoomId;
+                
+                const initials = getInitials(data.username);
+                const time = formatTime(data.timestamp);
+                const readCount = data.readCount || 1;
+
+                let contentHtml = '';
+
+                if (data.type === 'file' && data.file) {
+                    const { url, mimetype, originalName, size } = data.file;
+                    
+                    if (mimetype.startsWith('image/')) {
+                        contentHtml = `
+                            <div class="msg-image" onclick="window.open('${url}', '_blank')">
+                                <img src="${url}" alt="${originalName}" loading="lazy">
+                            </div>`;
+                    } else {
+                        const sizeStr = (size / 1024).toFixed(1) + ' KB';
+                        contentHtml = `
+                            <div class="msg-bubble">
+                                <a href="${url}" target="_blank" class="msg-file-link">
+                                    <div class="file-icon">
+                                        <svg viewBox="0 0 24 24"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
+                                    </div>
+                                    <div class="file-info">
+                                        <span class="file-name">${escapeHtml(originalName)}</span>
+                                        <span class="file-size">${sizeStr}</span>
+                                    </div>
+                                </a>
+                            </div>`;
+                    }
+                } else {
+                    contentHtml = `<div class="msg-bubble">${escapeHtml(data.message)}</div>`;
+                }
+
+                div.innerHTML = `
+                    <div class="msg-avatar">${initials}</div>
+                    <div class="msg-content-wrapper">
+                        <div class="msg-meta">
+                            <span class="msg-name">${type === 'self' ? 'You' : data.username}</span>
+                            <span class="msg-time">${time}</span>
+                        </div>
+                        ${contentHtml}
+                        <div class="msg-read-count" data-msg-id="${data.id}">
+                            <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                            <span class="read-count-num">${readCount}</span>
+                        </div>
+                    </div>
+                `;
+
+                messagesContainer.appendChild(div);
+                scrollToBottom();
+                
+                if (type === 'other') {
+                    markMessageAsRead(data.id, data.room || currentRoomId);
+                }
+            }
+
+            function addSystemMessage(text) {
+                const div = document.createElement('div');
+                div.className = 'message system';
+                div.innerHTML = `<div class="system-content">${text}</div>`;
+                messagesContainer.appendChild(div);
+                scrollToBottom();
+            }
+
+            function updateRoomList(rooms) {
+                roomsList.innerHTML = '';
+                rooms.forEach(room => {
+                    const li = document.createElement('li');
+                    const isActive = room.id === currentRoomId;
+                    li.className = `list-item ${isActive ? 'active' : ''}`;
+                    li.onclick = () => switchRoom(room.id);
+                    
+                    li.innerHTML = `
+                        <span class="room-icon">#</span>
+                        <div class="item-info">
+                            <span class="item-name">${escapeHtml(room.name)}</span>
+                        </div>
+                        <span class="item-badge">${room.memberCount || 0}</span>
+                    `;
+                    roomsList.appendChild(li);
+                });
+            }
+
+            function updateActiveRoomInList() {
+                const items = roomsList.querySelectorAll('.list-item');
+                Array.from(items).forEach(item => {
+                    if (item.querySelector('.item-name').textContent === currentRoomNameEl.textContent) {
+                        item.classList.add('active');
+                    } else {
+                        item.classList.remove('active');
+                    }
+                });
+            }
+
+            function updateUserList(users) {
+                usersList.innerHTML = '';
+                users.forEach(user => {
+                    const li = document.createElement('li');
+                    li.className = 'list-item';
+                    const isMe = user.username === username ? ' (You)' : '';
+                    li.innerHTML = `
+                        <div class="user-avatar">
+                            ${getInitials(user.username)}
+                            <div class="user-status"></div>
+                        </div>
+                        <div class="item-info">
+                            <span class="item-name">${escapeHtml(user.username)}${isMe}</span>
+                        </div>
+                    `;
+                    usersList.appendChild(li);
+                });
+            }
+
+            function scrollToBottom() {
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+
+            function escapeHtml(text) {
+                if (!text) return '';
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+        });
+    </script>
+</body>
+</html>

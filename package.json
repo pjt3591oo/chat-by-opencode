@@ -1,0 +1,16 @@
+{
+  "name": "nexus-chat",
+  "version": "2.0.0",
+  "description": "Real-time group chat application with Socket.io",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node src/index.js",
+    "start:legacy": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "multer": "^2.0.2",
+    "socket.io": "^4.7.2"
+  }
+}
